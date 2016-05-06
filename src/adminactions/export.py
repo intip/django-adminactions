@@ -57,7 +57,29 @@ def base_export(modeladmin, request, queryset, title, impl, name, action_short_d
         messages.error(request, str(e))
         return
 
-    cols = [(f.name, f.verbose_name) for f in queryset.model._meta.fields] + [(f.get_accessor_name(), f.name) for f in queryset.model._meta.get_all_related_objects()]
+    cols = [(f.name, f.verbose_name) for f in queryset.model._meta.fields]
+
+    if hasattr(queryset.model, "Export"):
+        export = queryset.model.Export
+        fields = None
+
+        if hasattr(export, "extra_fields"):
+            cols += export.extra_fields
+
+        if hasattr(export, "exclude_fields"):
+            fields = export.exclude_fields
+
+            def contains_intuple(field):
+                for index, value in enumerate(cols):
+                    if value[0] == name:
+                        return index
+                return -1
+
+            for name in fields:
+                index = contains_intuple(name)
+                if index != -1:
+                    del cols[index]
+
     initial = {'_selected_action': request.POST.getlist(helpers.ACTION_CHECKBOX_NAME),
                'select_across': request.POST.get('select_across') == '1',
                'action': get_action(request),
