@@ -57,7 +57,7 @@ def base_export(modeladmin, request, queryset, title, impl, name, action_short_d
         messages.error(request, str(e))
         return
 
-    cols = [(f.name, f.verbose_name) for f in queryset.model._meta.fields]
+    cols = [(f.name, f.verbose_name) for f in queryset.model._meta.fields] + [(f.get_accessor_name(), f.name) for f in queryset.model._meta.get_all_related_objects()]
     initial = {'_selected_action': request.POST.getlist(helpers.ACTION_CHECKBOX_NAME),
                'select_across': request.POST.get('select_across') == '1',
                'action': get_action(request),
