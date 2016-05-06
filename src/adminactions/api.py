@@ -299,8 +299,13 @@ def export_as_xls2(queryset, fields=None, header=None,  # noqa
     if options:
         config.update(options)
 
+    extra_fields = []
+
+    if hasattr(queryset.model, "Export") and hasattr(queryset.model.Export, "extra_fields"):
+        extra_fields = queryset.model.Export.extra_fields
+
     if fields is None:
-        fields = [f.name for f in queryset.model._meta.fields]
+        fields = [f.name for f in queryset.model._meta.fields] + [name for name, _ in extra_fields]
 
     book = xlwt.Workbook(encoding="utf-8", style_compression=2)
     sheet_name = config.pop('sheet_name')
@@ -311,9 +316,12 @@ def export_as_xls2(queryset, fields=None, header=None,  # noqa
     row = 0
     heading_xf = xlwt.easyxf('font:height 200; font: bold on; align: wrap on, vert centre, horiz center')
     sheet.write(row, 0, u'#', style)
+
     if header:
         if not isinstance(header, (list, tuple)):
             header = [force_text(f.verbose_name) for f in queryset.model._meta.fields if f.name in fields]
+            if hasattr(queryset.model, "Export") and hasattr(queryset.model.Export, "extra_fields"):
+                header += [force_text(f) for _, f in extra_fields]
 
         for col, fieldname in enumerate(header, start=1):
             sheet.write(row, col, fieldname, heading_xf)
@@ -333,7 +341,7 @@ def export_as_xls2(queryset, fields=None, header=None,  # noqa
             try:
                 value = get_field_value(row,
                                         fieldname,
-                                        usedisplay=use_display,
+                                        usedisplay=True,
                                         raw_callable=False)
                 if callable(fmt):
                     value = xlwt.Formula(fmt(value))
