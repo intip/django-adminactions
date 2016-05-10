@@ -5,7 +5,7 @@ import collections
 import datetime
 import itertools
 import six
-
+import types
 import pytz
 import xlwt
 from django.conf import settings
@@ -300,12 +300,14 @@ def export_as_xls2(queryset, fields=None, header=None,  # noqa
         config.update(options)
 
     extra_fields = []
+    related_fields = []
 
     if hasattr(queryset.model, "Export") and hasattr(queryset.model.Export, "extra_fields"):
         extra_fields = queryset.model.Export.extra_fields
+        related_fields = [name for name, _ in extra_fields]
 
     if fields is None:
-        fields = [f.name for f in queryset.model._meta.fields] + [name for name, _ in extra_fields]
+        fields = [f.name for f in queryset.model._meta.fields]
 
     book = xlwt.Workbook(encoding="utf-8", style_compression=2)
     sheet_name = config.pop('sheet_name')
@@ -334,8 +336,15 @@ def export_as_xls2(queryset, fields=None, header=None,  # noqa
 
     _styles = {}
 
-    for rownum, row in enumerate(queryset):
+    rownum = 0
+    for i in related_fields:
+        fields.remove(i)
+
+    cidx = len(fields)
+
+    for row in queryset:
         sheet.write(rownum + 1, 0, rownum + 1)
+
         for idx, fieldname in enumerate(fields):
             fmt = formats.get(idx, 'general')
             try:
@@ -343,6 +352,7 @@ def export_as_xls2(queryset, fields=None, header=None,  # noqa
                                         fieldname,
                                         usedisplay=True,
                                         raw_callable=False)
+
                 if callable(fmt):
                     value = xlwt.Formula(fmt(value))
                 if hash(fmt) not in _styles:
@@ -364,6 +374,22 @@ def export_as_xls2(queryset, fields=None, header=None,  # noqa
             except Exception as e:
                 # logger.warning("TODO refine this exception: %s" % e)
                 sheet.write(rownum + 1, idx + 1, smart_str(e), _styles[hash(fmt)])
+
+        for i, r in enumerate(related_fields):
+            _obj = get_field_value(row, r, usedisplay=True, raw_callable=False)
+
+            l = 0
+            if isinstance(_obj, types.GeneratorType):
+                for j, v in enumerate(_obj):
+                    if v:
+                        sheet.write(rownum + 1 + l, cidx + 1 + i, v, xlwt.easyxf(num_format_str='formula'))
+                        l += 1
+            else:
+                sheet.write(rownum + 1, cidx + 1 + i, smart_str(_obj), xlwt.easyxf(num_format_str='formula'))
+
+            rownum += l
+
+        rownum += 1
 
     book.save(response)
     return response
